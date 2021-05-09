@@ -12,15 +12,12 @@ from scipy.special import logsumexp
 from datetime import datetime
 import csv
 
-filename = 'C:/Users/formlos moin/source/repos/saki/01/Exercise 1 - Classification (Prof OSS)/SAKI Exercise 1 - Transaction Classification - Data Set.csv'
-
-# header ;Auftragskonto;Buchungstag;Valutadatum;Buchungstext;Verwendungszweck;Beguenstigter/Zahlungspflichtiger;Kontonummer;BLZ;Betrag;Waehrung;label
-
 
 class MixedNaive(BaseEstimator):
     """
     here to combine different naive bayes methods so that they can be used with cross_validate
     """
+
     def __init__(self, scales, min_cats):
         self._scales = scales
         self._min_cats = min_cats
@@ -50,7 +47,7 @@ class MixedNaive(BaseEstimator):
     def min_cats(self):
         return self._min_cats
 
-    def fit(self, X, y, **kwargs):
+    def fit(self, X, y):
         # check if text must be preprocessed
         for i, feature in enumerate(self._scales.iloc[0]):
             if feature == "multinomial_textclass":  # to the text processing on "verwendungszweck"
@@ -66,14 +63,13 @@ class MixedNaive(BaseEstimator):
                 mi_vals = mutual_info_classif(vectorized, y)
                 top_chi_2 = np.argpartition(chi_2_vals, -1 * self._top_k)
                 top_mi = np.argpartition(mi_vals, -1 * self._top_k)
-                self._top_features = set(np.concatenate((top_chi_2[-1*self._top_k:], top_mi[-1*self._top_k:])))
+                self._top_features = set(np.concatenate((top_chi_2[-1 * self._top_k:], top_mi[-1 * self._top_k:])))
 
                 # put them into table with scale multinomial_feature
                 for j, top_feature in enumerate(self._top_features):
                     col_name = "multi_" + str(j) + "_" + self._vectorizer.get_feature_names()[top_feature]
                     X.insert(0, col_name, vectorized.toarray()[:, top_feature])
                     self._scales.insert(0, col_name, "multinomial")
-
 
         used_scales = set(self._scales.iloc[0])
 
@@ -82,20 +78,20 @@ class MixedNaive(BaseEstimator):
             if scale == 'nominal':
                 nom_mask = np.where(self._scales == 'nominal', True, False)  # make a mask to only select features of
                 # that particular scale
-                nom_mask = nom_mask.reshape((nom_mask.size, ))
+                nom_mask = nom_mask.reshape((nom_mask.size,))
                 # get number of cats
-                cnb = CategoricalNB(min_categories=self._min_cats) # initialize classifier and store it with mask
+                cnb = CategoricalNB(min_categories=self._min_cats)  # initialize classifier and store it with mask
                 self._clfs.append([cnb, nom_mask])
 
             if scale == 'ratio':
                 ratio_mask = np.where(self._scales == 'ratio', True, False)
-                ratio_mask = ratio_mask.reshape((ratio_mask.size, ))
+                ratio_mask = ratio_mask.reshape((ratio_mask.size,))
                 gnb = GaussianNB()
                 self._clfs.append([gnb, ratio_mask])
 
             if scale == 'multinomial_textclass':
                 multinomial_mask = np.where(self._scales == 'multinomial', True, False)
-                multinomial_mask = multinomial_mask.reshape((multinomial_mask.size, ))
+                multinomial_mask = multinomial_mask.reshape((multinomial_mask.size,))
                 mnb = MultinomialNB()
                 self._clfs.append([mnb, multinomial_mask])
 
@@ -136,19 +132,19 @@ class MixedNaive(BaseEstimator):
             try:
                 out_log_proba += clf[0].predict_log_proba(X.iloc[:, clf[1]])
             except IndexError as ie:
-                print("error predicting: sample category unknown to CatNB")
+                print("error predicting: sample category unknown to CatNB", ie)
             except UserWarning as uw:
-                print("nok")
+                print("nok", uw)
         out_log_proba -= self.class_log_prior * (len(self._clfs) - 1)  # subtract log priors
         expanded_sum = np.expand_dims(np.log(np.sum(np.exp(out_log_proba), axis=1)), axis=1)
         out_log_proba_normalized = out_log_proba - expanded_sum  # normalize
         return out_log_proba_normalized
 
-    def predict(self, X, **kwargs):
+    def predict(self, X):
         pred = self.predict_log_proba(X)
         return self._clfs[0][0].classes_[np.argmax(pred, axis=1)]
 
-    def score(self, X, y, **kwargs):
+    def score(self, X, y):
         from sklearn.metrics import accuracy_score
         return accuracy_score(y, self.predict(X))
 
@@ -157,17 +153,18 @@ class Data:
     """
     This just keep the data operations in one place
     """
+
     def __init__(self):
         self._dataset = pd.read_csv(filename, delimiter=";")
         self._scales = pd.DataFrame.from_dict({"Auftragskonto": ['nominal'],
-             "Buchungstag": ['nominal'],
-             "Valutadatum": ['nominal'],
-             "Buchungstext": ['nominal'],
-             "Verwendungszweck": ['multinomial_textclass'],
-             "Beguenstigter/Zahlungspflichtiger": ['nominal'],
-             "Kontonummer": ['nominal'],
-             "BLZ": ['nominal'],
-             "Betrag": ['ratio']})
+                                               "Buchungstag": ['nominal'],
+                                               "Valutadatum": ['nominal'],
+                                               "Buchungstext": ['nominal'],
+                                               "Verwendungszweck": ['multinomial_textclass'],
+                                               "Beguenstigter/Zahlungspflichtiger": ['nominal'],
+                                               "Kontonummer": ['nominal'],
+                                               "BLZ": ['nominal'],
+                                               "Betrag": ['ratio']})
 
     @property
     def x(self):
@@ -183,7 +180,8 @@ class Data:
 
     def cleanse(self):
         for i in range(self._dataset.shape[1]):
-            filler = "0" if type(self._dataset.iloc[0, i]) == str else 0  # todo make sure filler value is new to the column
+            filler = "0" if type(
+                self._dataset.iloc[0, i]) == str else 0  # todo make sure filler value is new to the column
             if self._dataset.iloc[:, i].isna().any():
                 print("filling missing values in " + self._dataset.columns[i] + " with " +
                       (("#" + str(filler)) if type(filler) == int else ("'" + filler + "'")))
@@ -235,6 +233,9 @@ def load_data_test():
 
 
 def combine_two_categorical():
+    """
+    run this so see how combining 2 sklearn.CategoricalNB == combining them externally
+    """
     data = Data()
     data.cleanse()
     data.encode()
@@ -276,7 +277,7 @@ def run_combined_naive_bayes(x, y, scales, features):
     scales = scales.loc[:, features]
 
     nom_mask = np.where(scales == 'nominal', True, False)
-    nom_mask = nom_mask.reshape((nom_mask.size, ))
+    nom_mask = nom_mask.reshape((nom_mask.size,))
     min_cats = [np.unique(x.iloc[:, i]).size for i in range(x.shape[1]) if nom_mask[i]]  # for CategoricalNB we need the
     # number of categories ahead of time
 
@@ -284,7 +285,6 @@ def run_combined_naive_bayes(x, y, scales, features):
     score = 0
     f1 = 0
     for j in range(iterations):
-
         clf = MixedNaive(scales.copy(), min_cats)
 
         random_order = np.arange(0, x.shape[0])  # ensure that the train test splits are different in each iteration
@@ -297,40 +297,31 @@ def run_combined_naive_bayes(x, y, scales, features):
         scores = cross_validate(clf, x_1, y_1, scoring=scoring)  # run cross validation
         score += np.sum(scores['test_balanced_accuracy'])
         f1 += np.sum(scores['test_f1_micro'])
-    print("Acc: %.2f" % (score/(5 * iterations)))
-    print("F1:  %.2f" % (f1/(5*iterations)))
-    return [score/(5 * iterations), f1/(5*iterations)] # return the average acc and f1
+    print("Acc: %.2f" % (score / (5 * iterations)))
+    print("F1:  %.2f" % (f1 / (5 * iterations)))
+    return [score / (5 * iterations), f1 / (5 * iterations)]  # return the average acc and f1
 
-
-def simple_textclass():
-    data = Data()
-    data.cleanse()
-    data.encode()
-
-    mixed_nb = MixedNaive(data.scales.copy())
-
-    mixed_nb.fit(data.x[:180].copy(), data.y[:180].copy())
-    mixed_nb.predict_log_proba(data.x[180:].copy())
 
 def bin_str_to_bool_arr(bin_str):
     bool_ = [character == '1' for character in bin_str]
     return np.array(bool_)
 
+
 def try_all_combi():
-    feature_list = np.array(["TIM", "Wochentag", "Auftragskonto", "Buchungstag", "Valutadatum", "Buchungstext", "Verwendungszweck",
-                              "Beguenstigter/Zahlungspflichtiger", "Kontonummer", "BLZ", "Betrag"])  # this is redundant
+    feature_list = np.array(["TIM", "Wochentag", "Auftragskonto", "Buchungstag", "Valutadatum", "Buchungstext",
+                             "Verwendungszweck", "Beguenstigter/Zahlungspflichtiger", "Kontonummer", "BLZ", "Betrag"])
 
     data = Data()
     data.cleanse()
     data.prep_date_features()
     data.encode()
 
-    combis = 2 ** (feature_list.size) - 1  # this is the number of combinations of features
+    combis = (2 ** feature_list.size) - 1  # this is the number of combinations of features
 
     bin_str = [np.binary_repr(col_nr, width=feature_list.size) for col_nr in range(1, combis + 1)]
     bools = [bin_str_to_bool_arr(row) for row in bin_str]
 
-    masks = np.array(bools, dtype=bool)  # this is a mask representing all feature cominations
+    masks = np.array(bools, dtype=bool)  # this is a mask representing all feature combinations
 
     file = open("result.csv", "a", newline="")
     writer = csv.writer(file)
@@ -341,7 +332,7 @@ def try_all_combi():
         for i, mask in enumerate(masks):  # try each feature combination
             features = feature_list[mask]
 
-            print("(%d%%)" % int((100*i) / masks.shape[0]), " running on:", features)  # output whats being run
+            print("(%d%%)" % int((100 * i) / masks.shape[0]), " running on:", features)  # output whats being run
 
             result = run_combined_naive_bayes(data.x, data.y, data.scales, features)
             result.extend(mask)
@@ -353,5 +344,9 @@ def try_all_combi():
         file.close()
 
 
+filename = 'Exercise 1 - Classification (Prof OSS)/SAKI Exercise 1 - Transaction Classification - Data Set.csv'
+
 if __name__ == "__main__":
     try_all_combi()  # may run for a while (took me 2 hours)
+    # (but our winning combination is the 9th overall that gets tried, so just let it run for a second (at least 10
+    # combinations and you are good to go))
